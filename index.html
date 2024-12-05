@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approbation des Retraits</title>
+    
+    <!-- Styles CSS -->
+    <style>
+        /* Reset et base */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Filtres */
+        .filtres {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filtre-groupe {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filtre-groupe label {
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        input[type="date"],
+        input[type="text"],
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+
+        /* Statistiques */
+        .stats {
+            background: #e9ecef;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .stat-valeur {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+
+        /* Liste des retraits */
+        .retrait {
+            background-color: white;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .info-user {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .montant {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .details {
+            margin: 10px 0;
+        }
+
+        .detail {
+            margin: 5px 0;
+        }
+
+        /* Boutons */
+        .boutons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-approuver {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-rejeter {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-filtre {
+            background: #0d6efd;
+            color: white;
+            height: fit-content;
+            align-self: flex-end;
+        }
+
+        /* Debug et extra */
+        .debug-info {
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- En-tête de page -->
+    <div class="header">
+        <h1>Demandes de Retrait</h1>
+    </div>
+
+    <!-- Zone de filtres -->
+    <div class="filtres">
+        <div class="filtre-groupe">
+            <label>Date de début</label>
+            <input type="date" id="date-debut" onchange="filtrerRetraits()">
+        </div>
+        <div class="filtre-groupe">
+            <label>Date de fin</label>
+            <input type="date" id="date-fin" onchange="filtrerRetraits()">
+        </div>
+        <div class="filtre-groupe">
+            <label>État</label>
+            <select id="statut-filtre" onchange="filtrerRetraits()">
+                <option value="">Tous les états</option>
+                <option value="En attente">En attente</option>
+                <option value="Approuvé">Approuvé</option>
+                <option value="Rejeté">Rejeté</option>
+            </select>
+        </div>
+        <div class="recherche-groupe">
+            <label>Rechercher</label>
+            <input 
+                type="text" 
+                id="recherche" 
+                placeholder="Nom, téléphone, opérateur ou montant..."
+                oninput="filtrerRetraits()"
+            >
+        </div>
+        <button class="btn btn-filtre" onclick="reinitialiserFiltres()">
+            Réinitialiser les filtres
+        </button>
+    </div>
+
+    <!-- Statistiques globales -->
+    <div class="stats">
+        <div class="stat-item">
+            <div class="stat-valeur" id="total-retraits">0</div>
+            <div class="stat-label">Total des retraits</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-valeur" id="montant-total">0 €</div>
+            <div class="stat-label">Montant total</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-valeur" id="retraits-periode">0</div>
+            <div class="stat-label">Retraits filtrés</div>
+        </div>
+    </div>
+
+    <!-- Zones de débogage et de liste -->
+    <div id="debug" class="debug-info"></div>
+    <div id="liste-retraits"></div>
+    <div id="message" class="message"></div>
+
+    <!-- Script Firebase -->
+    <script type="module">
+        // Importations Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { 
+            getDatabase, 
+            ref, 
+            onValue,
+            update
+        } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCekNaQs88vn7Ed2IIO_fIrc3kk2lVfggM",
+            authDomain: "uber-10bff.firebaseapp.com",
+            databaseURL: "https://uber-10bff-default-rtdb.firebaseio.com",
+            projectId: "uber-10bff",
+            storageBucket: "uber-10bff.firestorage.app",
+            messagingSenderId: "997089945771",
+            appId: "1:997089945771:web:55496eb4fb702eabce2fee"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase();
+
+        let tousLesRetraits = [];
+
+        // Fonctions utilitaires
+        function afficherDebug(message) {
+            const debug = document.getElementById('debug');
+            debug.innerHTML += `<div>${message}</div>`;
+        }
+
+        function surlignerTexte(texte, recherche) {
+            if (!recherche) return texte;
+            const regex = new RegExp(`(${recherche})`, 'gi');
+            return texte.toString().replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        function mettreAJourStatistiques(retraits) {
+            const totalRetraits = document.getElementById('total-retraits');
+            const montantTotal = document.getElementById('montant-total');
+            const retraitsPeriode = document.getElementById('retraits-periode');
+
+            const total = tousLesRetraits.length;
+            const somme = tousLesRetraits.reduce((acc, retrait) => acc + (parseFloat(retrait.amount) || 0), 0);
+            const nombrePeriode = retraits.length;
+
+            totalRetraits.textContent = total;
+            montantTotal.textContent = `${somme.toFixed(2)} €`;
+            retraitsPeriode.textContent = nombrePeriode;
+        }
+
+        // Chargement des retraits
+        function chargerRetraits() {
+            const container = document.getElementById('liste-retraits');
+            
+            onValue(ref(db, 'users'), (snapshot) => {
+                container.innerHTML = '';
+                document.getElementById('debug').innerHTML = '';
+                tousLesRetraits = [];
+                
+                afficherDebug('Connexion à Firebase réussie');
+                
+                if (snapshot.exists()) {
+                    afficherDebug('Données trouvées dans users');
+                    
+                    snapshot.forEach((userSnapshot) => {
+                        const userData = userSnapshot.val();
+                        const userId = userSnapshot.key;
+                        
+                        if (userData.withdrawals) {
+                            Object.entries(userData.withdrawals).forEach(([retraitId, retrait]) => {
+                                retrait.userId = userId;
+                                retrait.retraitId = retraitId;
+                                retrait.username = userData.username || userData.email || 'Utilisateur sans nom';
+                                tousLesRetraits.push(retrait);
+                            });
+                        }
+                    });
+
+                    filtrerRetraits();
+                } else {
+                    afficherDebug('Aucune donnée trouvée dans users');
+                    container.innerHTML = '<div class="retrait">Aucune donnée trouvée</div>';
+                    mettreAJourStatistiques([]);
+                }
+            }, (error) => {
+                afficherDebug(`Erreur de connexion: ${error.message}`);
+                console.error('Erreur:', error);
+            });
+        }
+
+        // Fonctions globales pour interaction utilisateur
+        window.filtrerRetraits = function() {
+            const dateDebut = document.getElementById('date-debut').value;
+            const dateFin = document.getElementById('date-fin').value;
+            const recherche = document.getElementById('recherche').value.toLowerCase();
+            const statutFiltre = document.getElementById('statut-filtre').value;
+            const container = document.getElementById('liste-retraits');
+            
+            container.innerHTML = '';
+
+            let retraitsFiltres = [...tousLesRetraits];
+
+            // Filtres dynamiques
+            if (dateDebut) {
+                const debutTimestamp = new Date(dateDebut).getTime();
+                retraitsFiltres = retraitsFiltres.filter(retrait => 
+                    new Date(retrait.timestamp).getTime() >= debutTimestamp
+                );
+            }
+
+            if (dateFin) {
+                const finTimestamp = new Date(dateFin).setHours(23, 59, 59, 999);
+                retraitsFiltres = retraitsFiltres.filter(retrait => 
+                    new Date(retrait.timestamp).getTime() <= finTimestamp
+                );
+            }
+
+            if (statutFiltre) {
+                retraitsFiltres = retraitsFiltres.filter(retrait => 
+                    retrait.status === statutFiltre
+                );
+            }
+
+            if (recherche) {
+                retraitsFiltres = retraitsFiltres.filter(retrait => {
+                    const searchableFields = [
+                        retrait.username,
+                        retrait.phone,
+                        retrait.operator,
+                        retrait.amount?.toString(),
+                        retrait.status
+                    ].map(field => field?.toLowerCase() || '');
+
+                    return searchableFields.some(field => field.includes(recherche));
+                });
+            }
+
+            // Tri par date décroissante
+            retraitsFiltres.sort((a, b) => b.timestamp - a.timestamp);
+
+            // Génération du HTML pour chaque retrait
+            retraitsFiltres.forEach(retrait => {
+                const element = document.createElement('div');
+                element.className = 'retrait';
+                
+                element.innerHTML = `
+                    <div class="info-user">
+                        <strong>${surlignerTexte(retrait.username, recherche)}</strong>
+                        <span class="en-attente">${surlignerTexte(retrait.status || 'Status inconnu', recherche)}</span>
+                    </div>
+                    
+                    <div class="montant">${surlignerTexte(retrait.amount || 0, recherche)} €</div>
+                    
+                    <div class="details">
+                        <div class="detail">📱 Opérateur: ${surlignerTexte(retrait.operator || 'Non spécifié', recherche)}</div>
+                        <div class="detail">📞 Téléphone: ${surlignerTexte(retrait.phone || 'Non spécifié', recherche)}</div>
+                        <div class="detail">💰 Frais: ${retrait.fees || 0} FCFA</div>
+                        <div class="detail">💶 Total: ${retrait.totalAmount || 0} FCFA</div>
+                        <div class="detail">🕒 Date: ${retrait.timestamp ? new Date(retrait.timestamp).toLocaleString() : 'Non spécifié'}</div>
+                    </div>
+
+                    <div class="boutons">
+                        <button 
+                            class="btn btn-approuver" 
+                            onclick="window.mettreAJourStatut('${retrait.userId}', '${retrait.retraitId}', 'Approuvé')">
+                            APPROUVER
+                        </button>
+                        <button 
+                            class="btn btn-rejeter" 
+                            onclick="window.mettreAJourStatut('${retrait.userId}', '${retrait.retraitId}', 'Rejeté')">
+                            REJETER
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(element);
+            });
+
+            mettreAJourStatistiques(retraitsFiltres);
+        }
+
+        // Réinitialisation des filtres
+        window.reinitialiserFiltres = function() {
+            document.getElementById('date-debut').value = '';
+            document.getElementById('date-fin').value = '';
+            document.getElementById('recherche').value = '';
+            document.getElementById('statut-filtre').value = '';
+            filtrerRetraits();
+        }
+
+        // Mise à jour du statut de retrait
+        window.mettreAJourStatut = async function(userId, retraitId, nouveauStatut) {
+            try {const updates = {};
+                updates[`/users/${userId}/withdrawals/${retraitId}/status`] = nouveauStatut;
+                
+                await update(ref(db), updates);
+                afficherDebug(`Statut mis à jour: ${nouveauStatut}`);
+                
+                // Recharger les retraits après la mise à jour
+                chargerRetraits();
+                
+            } catch (error) {
+                afficherDebug(`Erreur de mise à jour: ${error.message}`);
+                console.error("Erreur:", error);
+            }
+        }
+
+        // Démarrer le chargement des retraits au chargement de la page
+        chargerRetraits();
+    </script>
+</body>
+</html>
